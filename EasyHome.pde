@@ -1,6 +1,5 @@
 import processing.serial.*;
 import cc.arduino.*;
-import interfascia.*;
 
 Arduino arduino;
 
