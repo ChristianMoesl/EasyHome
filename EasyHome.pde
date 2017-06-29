@@ -2,97 +2,182 @@ import processing.serial.*;
 import cc.arduino.*;
 import interfascia.*;
 
-GUIController c, w;
-IFButton b1, b2;
-IFLabel l;
-
 Arduino arduino;
 
 int ledPin = 13;
 int lightSensorPin = 0;
 int temperatuerSensorPin = 1;
 int time;
+int startup;
 boolean isOn = false;
 
-float temperature = Float.NaN;
+float temperature = 0;
+float light = 0;
 boolean drawWarning = false;
 boolean beSilent = false;
+boolean clicked = false;
 
 enum State {
+  STARTUP,
   IDLE,
   WARNING,
   WARNING_SILENT,
+  CALLING,
 }
 
-State state = State.IDLE;
+
+State state = State.STARTUP;
 
 void setup() {
+  size(800, 480);
+  background(245);
+  
   arduino = new Arduino(this, "COM5", 57600);
   
   time = millis();
   
-  size(800, 480);
+  arduino.pinMode(6, Arduino.SERVO);
   
-  c = new GUIController(this);
-  w = new GUIController(this);
+  arduino.servoWrite(6, (i % 2 == 0) ? 5 : 30);
   
-  b1 = new IFButton("Leise", 280, 380, 160, 50);
-  b2 = new IFButton("Blue", 120, 40, 40, 17);
-
-  b1.addActionListener(this);
-  b2.addActionListener(this);
-
-  w.add(b1);
-  c.add(b2);
+  startup = millis() + 2000;
 }
 
 void draw() {
+  background(245);
+  
   processArduino();
   
   switch (state) {
+    case STARTUP:
+    if (millis() >= startup)
+      state = State.IDLE;
+    break;
+    
     case IDLE:
     if (drawWarning) {
-      c.setVisible(false);
-      
-      background(155);
-      
-      fill(255, 0, 0);
-      rect(50, 30, 700, 420);
-      
       enableAlarm();
       
       state = State.WARNING;
     }
+    
+    textAlign(LEFT);
+    
+    // Draw temperature
+    fill(0);
+    textSize(40);
+    text("Temperatur: " + Float.toString(temperature).substring(0, 4) + "°C", 20, 60);    
+    
+    // Draw Light intensity
+    fill(0);
+    textSize(40);
+    text("Licht Intensiteat: " + Float.toString(light * 10).substring(0, 4) + "%", 20, 120);    
     break;
+    
     case WARNING:
     if (!drawWarning) {
-      c.setVisible(true);
-      
       beSilent = false;
+  
       disableAlarm();
       
       state = State.IDLE;
       
-    } else if (beSilent) {
+    } else if (clicked && mouseX >= 300 && mouseX <= 500 && mouseY >= 345 && mouseY <= 425) {
       disableAlarm();
       
       state = State.WARNING_SILENT;
     }
+    
+    // Draw red modal
+    fill(255, 0, 0);
+    rect(50, 30, 700, 420, 10, 10, 10, 10);
+    
+    // Draw silent button
+    stroke(255);
+    strokeWeight(4);
+    rect(100, 345, 600, 80, 10, 10, 10, 10);
+    
+    // Draw text in silent button
+    fill(255);
+    textSize(40);
+    textAlign(CENTER);
+    text("Alarm ausschalten", 400, 400);
+    
+    text("Defekt!", 400, 100);
+    
+    textSize(30);
+    text("Ihre Steuerung muss von einem", 400, 180);
+    text("Techniker repariert werden!", 400, 230);
     break;
+    
     case WARNING_SILENT:
     if (!drawWarning) {
-      c.setVisible(true);
+      beSilent = false;
+  
+      disableAlarm();
       
+      state = State.IDLE;
+    } else if (clicked && mouseX >= 300 && mouseX <= 500 && mouseY >= 345 && mouseY <= 425)
+      state = State.CALLING;
+    
+    // Draw red modal
+    fill(255, 0, 0);
+    rect(50, 30, 700, 420, 10, 10, 10, 10);
+    
+    // Draw silent button
+    stroke(255);
+    strokeWeight(4);
+    rect(100, 345, 600, 80, 10, 10, 10, 10);
+    
+    // Draw text in silent button
+    fill(255);
+    textSize(40);
+    textAlign(CENTER);
+    text("Techniker rufen", 400, 400);
+    
+    text("Defekt!", 400, 100);
+    
+    textSize(30);
+    text("Reperatur Nr.:", 400, 180);
+    text("1589 2561 1548", 400, 230);
+    break;
+    
+    case CALLING:
+    if (!drawWarning) {
       beSilent = false;
       
       state = State.IDLE;
     }
+    
+    // Draw red modal
+    fill(255, 0, 0);
+    rect(50, 30, 700, 420, 10, 10, 10, 10);
+    
+    // Draw text in silent button
+    fill(255);
+    textSize(40);
+    textAlign(CENTER);
+    text("Rufaufbau...", 400, 400);
+    
+    text("Defekt!", 400, 100);
+    
+    textSize(30);
+    text("Reperatur Nr.:", 400, 180);
+    text("1589 2561 1548", 400, 230);
     break;
   }
+  
+  clicked = false;
+}
+
+void mouseClicked() {
+  clicked = true;
+  
+  draw();
 }
 
 void processArduino() {
-  processStatusLed();
+  process();
   checkHardware();
 }
 
@@ -106,7 +191,7 @@ void checkHardware() {
   }
 }
 
-void processStatusLed() {
+void process() {
   if (millis() >= time) {
     if (isOn) {
       arduino.digitalWrite(ledPin, Arduino.LOW);
@@ -116,14 +201,12 @@ void processStatusLed() {
       arduino.digitalWrite(ledPin, Arduino.HIGH);
      
       time = millis() + 50;
+      
+      temperature = measureTemperature();
+      light = measureLightIntensity();
     }
     
     isOn = !isOn;
-  }
-}
-
-void actionPerformed(GUIEvent e) {
-  if (e.getSource() == b1) {
   }
 }
 
