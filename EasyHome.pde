@@ -1,5 +1,10 @@
 import processing.serial.*;
 import cc.arduino.*;
+import ddf.minim.*;
+
+Minim minim;
+AudioPlayer clickSong;
+AudioPlayer callingSong;
 
 Arduino arduino;
 
@@ -31,13 +36,13 @@ void setup() {
   size(800, 480);
   background(245);
   
-  arduino = new Arduino(this, "COM5", 57600);
+  arduino = new Arduino(this, Arduino.list()[0], 57600);
+  
+  minim = new Minim(this);
+  clickSong = minim.loadFile("ButtonClick.mp3");
+  callingSong = minim.loadFile("Calling.mp3");
   
   time = millis();
-  
-  arduino.pinMode(6, Arduino.SERVO);
-  
-  arduino.servoWrite(6, (i % 2 == 0) ? 5 : 30);
   
   startup = millis() + 2000;
 }
@@ -60,17 +65,17 @@ void draw() {
       state = State.WARNING;
     }
     
+    // Draw Headline
+    textAlign(CENTER);
+    textSize(60);
+    fill(0);
+    text("Easy Home", 400, 70);
+    
+    // Draw temperature and light intensity
     textAlign(LEFT);
-    
-    // Draw temperature
-    fill(0);
     textSize(40);
-    text("Temperatur: " + Float.toString(temperature).substring(0, 4) + "°C", 20, 60);    
-    
-    // Draw Light intensity
-    fill(0);
-    textSize(40);
-    text("Licht Intensiteat: " + Float.toString(light * 10).substring(0, 4) + "%", 20, 120);    
+    text("Temperatur: " + Float.toString(temperature).substring(0, 4) + "°C", 20, 150);
+    text("Lichtintensität: " + Float.toString(light * 10).substring(0, 4) + "%", 20, 210);    
     break;
     
     case WARNING:
@@ -83,6 +88,9 @@ void draw() {
       
     } else if (clicked && mouseX >= 300 && mouseX <= 500 && mouseY >= 345 && mouseY <= 425) {
       disableAlarm();
+      
+      clickSong.rewind();
+      clickSong.play();
       
       state = State.WARNING_SILENT;
     }
@@ -116,8 +124,15 @@ void draw() {
       disableAlarm();
       
       state = State.IDLE;
-    } else if (clicked && mouseX >= 300 && mouseX <= 500 && mouseY >= 345 && mouseY <= 425)
+    } else if (clicked && mouseX >= 300 && mouseX <= 500 && mouseY >= 345 && mouseY <= 425) {
+      clickSong.rewind();
+      clickSong.play();
+      
+      callingSong.rewind();
+      callingSong.play();
+      
       state = State.CALLING;
+    }
     
     // Draw red modal
     fill(255, 0, 0);
@@ -179,6 +194,8 @@ void processArduino() {
   process();
   checkHardware();
 }
+
+long tmp = millis() + 10000;
 
 void checkHardware() {
   float light = measureLightIntensity();
